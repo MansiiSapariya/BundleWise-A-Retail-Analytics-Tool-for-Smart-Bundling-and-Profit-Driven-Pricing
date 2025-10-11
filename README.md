@@ -176,7 +176,7 @@ http://127.0.0.1:5000/
 
 
 ## 🧾 License
-This project was developed as part of the M.Sc. Data Science program at CHRIST (Deemed to be University), Bengaluru, under the guidance of Dr. Apash Roy.
+
 
 
 
