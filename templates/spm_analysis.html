@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPM Analysis - BundleWise</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .active-tab { border-bottom: 3px solid #3b82f6; color: #1e40af; font-weight: 600; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid #8e44ad; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-8">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">Retail Analytics Dashboard</h1>
+            <a href="{{ url_for('data.data_ingestion_page') }}" class="flex items-center px-4 py-2 bg-blue-600 text-white rounded-full text-sm font-semibold hover:bg-blue-700 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                Upload New Dataset
+            </a>
+        </div>
+        <div class="border-b border-gray-200 mb-8">
+            <ul class="flex -mb-px space-x-8 text-gray-500 text-lg">
+                <li><a href="{{ url_for('dashboard.dashboard_page') }}" class="inline-block py-4 px-2 hover:text-gray-700">Overview</a></li>
+                <li><a href="{{ url_for('mba.mba_analysis_page') }}" class="inline-block py-4 px-2 hover:text-gray-700">Market Basket</a></li>
+                <li><a href="{{ url_for('spm.spm_analysis_page') }}" class="inline-block py-4 px-2 active-tab">Sequences</a></li>
+                <li><a href="#" class="inline-block py-4 px-2 hover:text-gray-700">Forecasting</a></li>
+                <li><a href="#" class="inline-block py-4 px-2 hover:text-gray-700">Pricing</a></li>
+            </ul>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+            <div class="flex flex-col md:flex-row items-center md:space-x-6">
+                <div class="flex-1 mb-4 md:mb-0">
+                    <label for="granularity" class="block text-sm font-medium text-gray-700">Analysis Granularity</label>
+                    <select id="granularity" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm rounded-md">
+                        <option value="0.005">Broad (Fastest)</option>
+                        <option value="0.002" selected>Default (Recommended)</option>
+                        <option value="0.001">Detailed (Slower)</option>
+                    </select>
+                </div>
+                <button id="run-analysis-btn" class="w-full md:w-auto bg-purple-600 text-white font-semibold px-8 py-3 rounded-lg shadow-md hover:bg-purple-700 transition-colors">
+                    Run Analysis
+                </button>
+            </div>
+        </div>
+
+        <div id="loading-indicator" class="hidden text-center py-16">
+            <div class="loader inline-block"></div>
+            <p class="mt-4 text-gray-600 font-semibold">Mining Sequential Patterns...</p>
+        </div>
+
+        <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <strong class="font-bold">Error!</strong>
+            <span class="block sm:inline" id="error-text"></span>
+        </div>
+        
+        <div id="sampling-notice" class="hidden bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6" role="alert">
+            <p class="font-bold">Notice</p>
+            <p id="sampling-text"></p>
+        </div>
+
+        <div id="main-content" class="hidden grid grid-cols-1 gap-8">
+            <div class="mb-4">
+                <h2 class="text-2xl font-bold text-gray-800">Sequential Pattern Mining Results</h2>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-xl shadow-md p-6 text-center"><p class="text-sm">Pattern Sequences</p><p id="kpi-sequences" class="text-lg font-bold text-blue-600 mt-2">0</p></div>
+                <div class="bg-white rounded-xl shadow-md p-6 text-center"><p class="text-sm">Avg. Conversion</p><p id="kpi-conversion" class="text-lg font-bold text-green-600 mt-2">0%</p></div>
+                <div class="bg-white rounded-xl shadow-md p-6 text-center"><p class="text-sm">Customer Journeys</p><p id="kpi-journeys" class="text-lg font-bold text-gray-800 mt-2">0</p></div>
+                <div class="bg-white rounded-xl shadow-md p-6 text-center"><p class="text-sm">Avg. Journey Time</p><p id="kpi-time" class="text-lg font-bold text-gray-800 mt-2">0</p></div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white rounded-xl shadow-md p-6"><h3 class="text-lg font-semibold">Top Sequential Patterns</h3><img id="top-spm-chart" src="" class="w-full h-auto mt-4"></div>
+                <div class="bg-white rounded-xl shadow-md p-6"><h3 class="text-lg font-semibold">Hourly Purchase Patterns</h3><img id="hourly-chart" src="" class="w-full h-auto mt-4"></div>
+            </div>
+            <div class="bg-white rounded-xl shadow-md p-6 mt-8">
+                <h3 class="text-lg font-semibold">Detailed Sequential Patterns</h3>
+                <div class="overflow-x-auto mt-4"><table class="min-w-full divide-y divide-gray-200">
+                    <thead><tr>
+                        <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">Pattern</th>
+                        <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">Support</th>
+                        <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">Avg. Time</th>
+                        <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">Confidence</th>
+                        <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase">Lift</th>
+                    </tr></thead>
+                    <tbody id="spm-table-body" class="bg-white divide-y divide-gray-200"></tbody>
+                </table></div>
+            </div>
+            </div>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const runBtn = document.getElementById('run-analysis-btn');
+    const granularitySelect = document.getElementById('granularity');
+
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const mainContent = document.getElementById('main-content');
+    const errorMessage = document.getElementById('error-message');
+    const errorText = document.getElementById('error-text');
+    const samplingNotice = document.getElementById('sampling-notice');
+    const samplingText = document.getElementById('sampling-text');
+
+    runBtn.addEventListener('click', function() {
+        const minSupport = granularitySelect.value;
+        
+        mainContent.style.display = 'none';
+        errorMessage.style.display = 'none';
+        samplingNotice.style.display = 'none';
+        loadingIndicator.style.display = 'block';
+
+        fetch(`{{ url_for('spm.get_spm_data') }}?min_support=${minSupport}`)
+            .then(response => response.ok ? response.json() : Promise.reject('Network response was not ok.'))
+            .then(data => {
+                if (data.status === 'error') throw new Error(data.message);
+
+                if (data.was_sampled) {
+                    samplingText.textContent = data.sampling_message;
+                    samplingNotice.style.display = 'block';
+                }
+
+                document.getElementById('kpi-sequences').textContent = data.pattern_sequences;
+                document.getElementById('kpi-conversion').textContent = data.avg_conversion + '%';
+                document.getElementById('kpi-journeys').textContent = data.customer_journeys;
+                document.getElementById('kpi-time').textContent = data.avg_journey_time;
+
+                document.getElementById('top-spm-chart').src = 'data:image/png;base64,' + data.top_spm_chart;
+                document.getElementById('hourly-chart').src = 'data:image/png;base64,' + data.hourly_chart;
+
+                const tableBody = document.getElementById('spm-table-body');
+                tableBody.innerHTML = '';
+                if (data.sequential_patterns.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="5" class="text-center py-4">No sequential patterns found with the selected granularity. Try a broader setting.</td></tr>';
+                } else {
+                    data.sequential_patterns.forEach(p => {
+                        const itemsHtml = p.items.map((item, index) => {
+                            const arrow = index < p.items.length - 1 ? ' <span class="text-gray-400 font-bold">→</span> ' : '';
+                            return `<span class="bg-gray-200 text-gray-700 px-2 py-1 rounded-full text-xs">${item}</span>` + arrow;
+                        }).join('');
+                        
+                        const row = `<tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm"><div class="flex flex-wrap items-center gap-1">${itemsHtml}</div></td>
+                            <td class="px-6 py-4">${p.support.toFixed(4)}</td>
+                            <td class="px-6 py-4">${p.avg_time.toFixed(1)} days</td>
+                            <td class="px-6 py-4">${p.confidence.toFixed(4)}</td>
+                            <td class="px-6 py-4">${p.lift.toFixed(2)}x</td>
+                        </tr>`;
+                        tableBody.innerHTML += row;
+                    });
+                }
+                
+                loadingIndicator.style.display = 'none';
+                mainContent.style.display = 'grid';
+            })
+            .catch(err => {
+                console.error('Fetch Error:', err);
+                errorText.textContent = err.message || 'Failed to fetch analysis data.';
+                errorMessage.style.display = 'block';
+                loadingIndicator.style.display = 'none';
+            });
+    });
+});
+</script>
+</body>
+</html>

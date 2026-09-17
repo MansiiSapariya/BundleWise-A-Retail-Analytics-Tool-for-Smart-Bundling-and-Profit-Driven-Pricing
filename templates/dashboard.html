@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BundleWise - Retail Analytics Dashboard</title>
+    <!-- Add this line for favicon -->
+    <link rel="shortcut icon" href="{{ url_for('static', filename='logo.png') }}">
+
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .active-tab { border-bottom: 3px solid #3b82f6; color: #1e40af; font-weight: 600; }
+        .header-actions { display: flex; gap: 10px; position: absolute; top: 0; right: 0; }
+        .header-btn { display: flex; align-items: center; padding: 8px 12px; background-color: #3b82f6; color: white; border-radius: 9999px; text-decoration: none; font-size: 0.875rem; font-weight: 600; transition: background-color 0.2s ease; }
+        .header-btn.download-btn { background-color: lightseagreen; }
+        .header-btn:hover { background-color: #2563eb; }
+        .header-btn.download-btn:hover { background-color: teal; }
+        .header-btn svg { width: 1.25rem; height: 1.25rem; margin-right: 0.5rem; }
+        
+        /* Main dashboard tabs */
+        .dashboard-tabs { border-bottom: 2px solid #e2e8f0; margin-bottom: 1.5rem; }
+        .dashboard-tabs ul { display: flex; -webkit-overflow-scrolling: touch; overflow-x: auto; justify-content: center; }
+        .dashboard-tabs li a { display: inline-block; padding: 1rem 1.25rem; color: #718096; font-weight: 500; white-space: nowrap; text-decoration: none; border-bottom: 3px solid transparent; transition: all 0.2s ease-in-out; }
+        .dashboard-tabs li a:hover { color: #2d3748; }
+        .dashboard-tabs li a.active-tab { color: #3b82f6; border-bottom-color: #3b82f6; font-weight: 600; }
+        
+        /* Analytics category tabs */
+        .analytics-tabs { border-bottom: 1px solid #e2e8f0; margin-bottom: 2rem; }
+        .analytics-tabs ul { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+        .analytics-tabs li a { display: inline-flex; align-items: center; padding: 0.75rem 1rem; color: #6b7280; font-weight: 500; text-decoration: none; border-radius: 0.5rem; transition: all 0.2s ease; position: relative; }
+        .analytics-tabs li a:hover { color: #374151; background-color: #f3f4f6; }
+        .analytics-tabs li a.active { color: #1d4ed8; background-color: #dbeafe; font-weight: 600; }
+        .analytics-tabs .info-icon { margin-left: 0.5rem; color: #9ca3af; cursor: help; }
+        .analytics-tabs .info-icon:hover { color: #6366f1; }
+        
+        .dashboard-tab-content { display: none; }
+        .dashboard-tab-content.active { display: block; }
+        .analytics-content { display: none; }
+        .analytics-content.active { display: block; }
+        
+        .chart-panel, .kpi-panel, .info-panel { background: #ffffff; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06); padding: 1.5rem; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 200px; }
+        .chart-panel h3, .kpi-panel h3, .info-panel h3 { font-size: 1.25rem; font-weight: 600; color: #2d3748; margin-bottom: 1rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem; width: 100%; text-align: center; }
+        .dashboard-message-box { padding: 1rem; margin-bottom: 1rem; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; text-align: center; }
+        .dashboard-message-box.info { background-color: #dbeafe; color: #2563eb; border: 1px solid #93c5fd; }
+        .dashboard-message-box.success { background-color: #d1fae5; color: #065f46; border: 1px solid #10b981; }
+        .dashboard-message-box.error { background-color: #fee2e2; color: #dc2626; border: 1px solid #ef4444; }
+        .dashboard-message-box.warning { background-color: #fffbeb; color: #d97706; border: 1px solid #fcd34d; }
+        
+        /* Bundle cards */
+        .bundle-card { background-color: #f0f4ff; border: 1px solid #93c5fd; border-radius: 0.75rem; padding: 1rem; display: flex; align-items: center; gap: 1rem; }
+        .bundle-card-icon { font-size: 2rem; color: #3b82f6; }
+        .bundle-card-content { flex-grow: 1; }
+        .bundle-card-title { font-weight: 600; color: #2d3748; font-size: 1rem; margin-bottom: 0.25rem; }
+        .bundle-item-pill { background-color: #bfdbfe; color: #1e40af; padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
+        .bundle-reason { font-size: 0.875rem; color: #4a5568; font-style: italic; }
+        
+        /* Chart containers */
+        .chart-container { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); padding: 1.5rem; height: 500px; width: 100%; }
+        .chart-title { display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; }
+        .chart-title h3 { font-size: 1.125rem; font-weight: 600; color: #374151; margin: 0; }
+        .chart-title .info-tooltip { margin-left: 0.5rem; color: #9ca3af; cursor: help; }
+        .chart-title .info-tooltip:hover { color: #6366f1; }
+        
+        /* Metrics cards */
+        .metric-card { background: linear-gradient(135deg, #B0E0E6 10%, #4682B4 100%); color: white; border-radius: 1rem; padding: 1rem; text-align: center; min-height: 120px; display: flex; flex-direction: column; justify-content: center; }
+        .metric-card h4 { font-size: 0.875rem; opacity: 0.9; margin-bottom: 0.5rem; }
+        .metric-card .metric-value { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .metric-card .metric-label { font-size: 0.75rem; opacity: 0.8; }
+        
+        /* Loading and error states */
+        .spinner { border: 4px solid #f3f4f6; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Tooltip styles */
+        .tooltip { position: relative; display: inline-block; }
+        .tooltip .tooltiptext { visibility: hidden; width: 200px; background-color: #374151; color: #fff; text-align: center; border-radius: 6px; padding: 8px; position: absolute; z-index: 1000; bottom: 125%; left: 50%; margin-left: -100px; font-size: 0.875rem; line-height: 1.4; }
+        .tooltip .tooltiptext::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px; border-width: 5px; border-style: solid; border-color: #374151 transparent transparent transparent; }
+        .tooltip:hover .tooltiptext { visibility: visible; }
+    </style>
+</head>
+<body>
+    <div class="containers mx-auto p-8">
+      <div class="flex justify-between items-center mb-6 relative">
+                <div class="flex items-center">
+                <img src="{{ url_for('static', filename='logo.png') }}" 
+                     alt="Company Logo" 
+                     class="h-14 w-14 rounded-full border-2 border-gray-200 mr-4" />
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-800">Bundle Wise - Retail Analytics Dashboard</h1>
+                    <p class="text-gray-500">Comprehensive insights from your sales data</p>
+                </div>
+            </div>
+            <div class="header-actions">
+            <!-- Analytics Report Downloads (Deep Blue) -->
+            <a href="{{ url_for('dashboard.download_analytics_excel') }}" class="header-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Analytics Excel
+            </a>
+            
+            <a href="{{ url_for('dashboard.download_analytics_pdf') }}" class="header-btn download-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                Analytics PDF
+            </a>
+            
+            <!-- Data Actions (Teal) -->
+            <a href="{{ url_for('data.download_cleaned_data') }}" class="header-btn download-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download Data
+            </a>
+            
+            <a href="{{ url_for('data.data_ingestion_page') }}" class="header-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                Upload New
+            </a>
+        </div>
+
+</div>
+
+
+        <!-- Main Dashboard Tabs -->
+        <div class="dashboard-tabs">
+            <ul role="tablist">
+                <li><a href="#overview-tab" class="py-4 px-2 hover:text-gray-700 active-tab" role="tab">Overview</a></li>
+                <li><a href="#bundle-recommendations-tab" class="py-4 px-2 hover:text-gray-700" role="tab">Bundle Recommendations & Price Optimization</a></li>
+                <li><a href="#analytics-tab" class="py-4 px-2 hover:text-gray-700" role="tab">Analytics Reports</a></li>
+            </ul>
+        </div>
+        
+        <div id="dashboard-tab-content-container">
+            <!-- OVERVIEW TAB -->
+            <!-- OVERVIEW TAB - ENHANCED LAYOUT -->
+            <div id="overview-tab" class="dashboard-tab-content active">
+                <!-- Success Message -->
+                <div class="dashboard-message-box {{ dashboard_message.type }}" id="dashboardMessage">
+                    {{ dashboard_message.text }}
+                </div>
+                
+                <!-- Row 1: KPI Metrics (Keep existing) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 mt-6">
+                    <!-- Your existing KPI cards -->
+                </div>
+
+                <!-- Row 2: Main Content - 3 Columns -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <!-- Column 1: Top Selling Product -->
+                    <div class="info-panel">
+                        <h3>Top Selling Product</h3>
+                        <div class="text-center">
+                            <p class="text-2xl font-bold text-gray-800 mb-2">{{ top_selling_product.name }}</p>
+                            <p class="text-gray-600 mb-3">{{ top_selling_product.units }} units sold</p>
+                            <div class="w-full bg-gray-200 rounded-full h-3 mb-2">
+                                <div class="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full" style="width: {{ top_selling_product.sales_percentage }}%"></div>
+                            </div>
+                            <p class="text-sm font-medium text-blue-600">{{ top_selling_product.sales_percentage }}% of total revenue</p>
+                            <span class="inline-block px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800 mt-2">
+                                {{ top_selling_product.tag }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Customer Insights Overview -->
+                    <div class="info-panel">
+                        <h3>Customer Insights Overview</h3>
+                        <div class="space-y-3">
+                            {% for insight in customer_insights_overview %}
+                            <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                                <span class="text-gray-700 text-sm">{{ insight.insight }}</span>
+                                <span class="px-3 py-1 text-xs font-semibold rounded-full bg-blue-200 text-blue-800">
+                                    {{ insight.metric }}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+
+                    <!-- Column 3: NEW - About Platform -->
+                    <div class="info-panel">
+                        <h3 class="w-full"> About This Platform</h3>
+                        <div class="text-sm text-gray-700 space-y-2">
+                            <p><strong>Advanced Retail Analytics</strong></p>
+                            <p>Powered by AI-driven insights for data-driven decisions</p>
+                            <ul class="text-xs space-y-1 mt-3">
+                                <li>• Bundle Recommendation Engine</li>
+                                <li>• Dynamic Pricing Optimization</li>
+                                <li>• Sequential Pattern Mining</li>
+                                <li>• Real-time Performance Tracking</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Row 3:Quick Facts  - 2 Columns -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <!-- Column 1: Quick Facts -->
+                    <div class="info-panel">
+                        <h3 class="w-full"> Quick Facts</h3>
+                        <div class="space-y-2">
+                            <div class="flex items-center p-2 bg-green-50 rounded">
+                                <span class="text-green-600"> </span>
+                                <span class="ml-2 text-sm">{{ total_transactions }} transactions processed successfully</span>
+                            </div>
+                            <div class="flex items-center p-2 bg-blue-50 rounded">
+                                <span class="text-blue-600"> </span>
+                                <span class="ml-2 text-sm">{{ avg_items_per_transaction }} items per transaction (optimal)</span>
+                            </div>
+                            <div class="flex items-center p-2 bg-yellow-50 rounded">
+                                <span class="text-yellow-600"> </span>
+                                <span class="ml-2 text-sm">Revenue concentration: Top product {{ top_selling_product.sales_percentage }}% of sales</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Smart Monthly Goals -->
+                    <div class="info-panel">
+                        <h3>Smart Monthly Goals</h3>
+                        <div class="space-y-4">
+                            <!-- Revenue Goal -->
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="font-medium">Revenue Target</span>
+                                    <span class="text-gray-600">${{ total_revenue }} / ${{ "%.0f"|format(monthly_goals.revenue_target) }}</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: {{ monthly_goals.revenue_progress|round }}%"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">{{ monthly_goals.revenue_progress|round }}% of adaptive target (+15% growth)</p>
+                            </div>
+                            
+                            <!-- Customer Goal -->
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="font-medium">Customer Growth</span>
+                                    <span class="text-gray-600">{{ unique_customers }} / {{ "%.0f"|format(monthly_goals.customer_target) }}</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: {{ monthly_goals.customer_progress|round }}%"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">{{ monthly_goals.customer_progress|round }}% of adaptive target (+12% growth)</p>
+                            </div>
+                            
+                            <!-- Transaction Goal -->
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="font-medium">Transaction Volume</span>
+                                    <span class="text-gray-600">{{ total_transactions }} / {{ "%.0f"|format(monthly_goals.transaction_target) }}</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: {{ monthly_goals.transaction_progress|round }}%"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">{{ monthly_goals.transaction_progress|round }}% of adaptive target (+10% growth)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- BUNDLE RECOMMENDATIONS TAB -->
+            <div id="bundle-recommendations-tab" class="dashboard-tab-content">
+                <div class="dashboard-message-box info">
+                    AI-powered bundle recommendations based on Market Basket Analysis and Sequential Pattern Mining with dynamic pricing optimization.
+                </div>
+
+                <h2 class="text-2xl font-bold text-gray-800 mt-6 mb-4 text-center">Actionable Bundle Recommendations</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="info-panel">
+                        <h3 class="w-full">"Complementary Collection" Offers</h3>
+                        <div class="mt-4 space-y-4 w-full text-left">
+                            {% if bogo_bundles %}
+                                {% for bundle in bogo_bundles %}
+                                <div class="bundle-card">
+                                    <i class="fas fa-gift bundle-card-icon"></i>
+                                    <div class="bundle-card-content">
+                                        <div class="bundle-card-title">
+                                            Buy: <span class="bundle-item-pill bg-blue-200 text-blue-800">{{ bundle.buy_display if bundle.buy_display else bundle.buy_item }}</span> 
+                                            Get Discount: <span class="bundle-item-pill bg-green-200 text-green-800">{{ bundle.get_display if bundle.get_display else bundle.get_item }}</span>
+                                        </div>
+                                        
+                                        {% if bundle.has_pricing %}
+                                        <div class="mt-3 p-3 bg-gray-50 rounded-lg border">
+                                            <div class="grid grid-cols-3 gap-2 text-sm">
+                                                <div class="text-center">
+                                                    <div class="text-xs text-gray-500">Individual Total</div>
+                                                    <div class="font-bold text-red-600">${{ bundle.individual_total_price }}</div>
+                                                </div>
+                                                <div class="text-center">
+                                                    <div class="text-xs text-gray-500">Bundle Price</div>
+                                                    <div class="font-bold text-green-600">${{ bundle.optimized_price }}</div>
+                                                </div>
+                                                <div class="text-center">
+                                                    <div class="text-xs text-gray-500">You Save</div>
+                                                    <div class="font-bold text-blue-600">${{ bundle.savings }}</div>
+                                                </div>
+                                            </div>
+                                            <div class="text-center mt-2 pt-2 border-t border-gray-200">
+                                                <span class="text-sm font-semibold text-purple-600">{{ bundle.discount_percentage }}% Discount • ${{ bundle.revenue_impact }}K Revenue Impact</span>
+                                            </div>
+                                        </div>
+                                        {% else %}
+                                        <div class="mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
+                                            <span class="text-xs text-yellow-700">
+                                                {% if bundle.pricing_error %}
+                                                    Pricing calculation error: {{ bundle.pricing_error }}
+                                                {% else %}
+                                                    Pricing data not available for this bundle
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        {% endif %}
+                                        
+                                        <div class="mt-2 mb-2">
+                                            <span class="inline-block px-2 py-1 text-xs font-semibold rounded bg-purple-100 text-purple-800 mr-2">
+                                                Validation Score: {{ bundle.confidence_score }}%
+                                            </span>
+                                            <span class="inline-block px-2 py-1 text-xs font-semibold rounded bg-blue-100 text-blue-800">
+                                                Co-occurrence: {{ bundle.temporal_cooccurrence }}
+                                            </span>
+                                        </div>
+                                        <p class="bundle-reason">{{ bundle.reason }}</p>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-gray-500 text-center w-full">No validated "Complementary Collection" bundles available with current data and validation criteria.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="info-panel">
+                        <h3 class="w-full">"Buy Now, Save Next" Offers</h3>
+                        <div class="mt-4 space-y-4 w-full text-left">
+                            {% if next_purchase_offers %}
+                                {% for offer in next_purchase_offers %}
+                                <div class="bundle-card">
+                                    <i class="fas fa-arrow-right bundle-card-icon"></i>
+                                    <div class="bundle-card-content">
+                                        <div class="bundle-card-title">
+                                            Buy: <span class="bundle-item-pill bg-blue-200 text-blue-800">{{ offer.buy_item }}</span> 
+                                            Save on Next: <span class="bundle-item-pill bg-green-200 text-green-800">{{ offer.next_item }}</span>
+                                        </div>
+                                        
+                                        {% if offer.has_pricing %}
+                                        <div class="mt-3 p-3 bg-gray-50 rounded-lg border">
+                                            <div class="grid grid-cols-3 gap-2 text-sm">
+                                                <div class="text-center">
+                                                    <div class="text-xs text-gray-500">First Item</div>
+                                                    <div class="font-bold text-blue-600">${{ offer.buy_item_price }}</div>
+                                                </div>
+                                                <div class="text-center">
+                                                    <div class="text-xs text-gray-500">Next Item</div>
+                                                    <div class="font-bold text-green-600">${{ (offer.next_item_price - offer.savings)|round(2) }}</div>
+                                                    <div class="text-xs text-red-500">({{ offer.discount_percentage }}% off)</div>
+                                                </div>
+                                                <div class="text-center">
+                                                    <div class="text-xs text-gray-500">Bundle Total</div>
+                                                    <div class="font-bold text-purple-600">${{ offer.optimized_price }}</div>
+                                                </div>
+                                            </div>
+                                            <div class="text-center mt-2 pt-2 border-t border-gray-200">
+                                                <span class="text-sm font-semibold text-purple-600">Save ${{ offer.savings }} • ${{ offer.revenue_impact }}K Revenue Impact</span>
+                                            </div>
+                                        </div>
+                                        {% else %}
+                                        <div class="mt-2 p-2 bg-yellow-50 rounded border border-yellow-200">
+                                            <span class="text-xs text-yellow-700">
+                                                {% if offer.pricing_error %}
+                                                    Pricing calculation error: {{ offer.pricing_error }}
+                                                {% else %}
+                                                    Pricing data not available for this bundle
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        {% endif %}
+                                        
+                                        <div class="mt-2 mb-2">
+                                            <span class="inline-block px-2 py-1 text-xs font-semibold rounded bg-orange-100 text-orange-800 mr-2">
+                                                Confidence: {{ offer.confidence_level }}
+                                            </span>
+                                            <span class="inline-block px-2 py-1 text-xs font-semibold rounded bg-teal-100 text-teal-800">
+                                                Support: {{ offer.support_percentage }}
+                                            </span>
+                                        </div>
+                                        <p class="bundle-reason">{{ offer.reason }}</p>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-gray-500 text-center w-full">No "Buy Now, Save Next" offers available with current parameters.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ANALYTICS REPORTS TAB -->
+            <div id="analytics-tab" class="dashboard-tab-content">
+                <div class="dashboard-message-box success">
+                    Comprehensive analytics with interactive visualizations organized by category for deep business insights.
+                </div>
+
+                <!-- Analytics Category Tabs -->
+                <div class="analytics-tabs">
+                    <ul role="tablist">
+                        <li>
+                            <a href="#summary-analytics" class="analytics-tab-link active" data-category="summary">
+                                <i class="fas fa-chart-line mr-2"></i>
+                                Summary
+                                <div class="tooltip">
+                                    <i class="fas fa-info-circle info-icon"></i>
+                                    <span class="tooltiptext">Key performance indicators and revenue overview charts</span>
+                                </div>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#product-analytics" class="analytics-tab-link" data-category="product">
+                                <i class="fas fa-box mr-2"></i>
+                                Product Performance
+                                <div class="tooltip">
+                                    <i class="fas fa-info-circle info-icon"></i>
+                                    <span class="tooltiptext">Detailed product performance, pricing analysis, and market positioning</span>
+                                </div>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#customer-analytics" class="analytics-tab-link" data-category="customer">
+                                <i class="fas fa-users mr-2"></i>
+                                Customer Insights
+                                <div class="tooltip">
+                                    <i class="fas fa-info-circle info-icon"></i>
+                                    <span class="tooltiptext">Customer segmentation, spending behavior, and transaction patterns</span>
+                                </div>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#advanced-analytics" class="analytics-tab-link" data-category="advanced">
+                                <i class="fas fa-brain mr-2"></i>
+                                Advanced Analytics
+                                <div class="tooltip">
+                                    <i class="fas fa-info-circle info-icon"></i>
+                                    <span class="tooltiptext">Cross-selling opportunities, seasonal trends, and profitability analysis</span>
+                                </div>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Summary Analytics Content -->
+                <div id="summary-analytics" class="analytics-content active">
+                    <!-- Loading/Error States -->
+                    <div id="summary-loading" class="text-center py-16">
+                        <div class="spinner"></div>
+                        <p class="mt-4 text-gray-600">Loading summary analytics...</p>
+                    </div>
+                    <div id="summary-error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+                        <strong>Error:</strong> <span id="summary-error-text">Failed to load summary data</span>
+                    </div>
+
+                    <!-- Content -->
+                    <div id="summary-content" class="hidden">
+                        <!-- Summary Metrics -->
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                            <div class="metric-card">
+                                <h4>Total Revenue</h4>
+                                <div class="metric-value" id="summary-total-revenue">$0</div>
+                                <div class="metric-label">All time</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>Products</h4>
+                                <div class="metric-value" id="summary-total-products">0</div>
+                                <div class="metric-label">Unique items</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>Transactions</h4>
+                                <div class="metric-value" id="summary-total-transactions">0</div>
+                                <div class="metric-label">Total orders</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>Avg Order Value</h4>
+                                <div class="metric-value" id="summary-avg-order-value">$0</div>
+                                <div class="metric-label">Per transaction</div>
+                            </div>
+                        </div>
+
+                        <!-- Summary Charts -->
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Revenue Overview</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Revenue distribution across top product categories</span>
+                                    </div>
+                                </div>
+                                <div id="revenue-overview-chart"></div>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Sales Trend</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Monthly sales performance over time</span>
+                                    </div>
+                                </div>
+                                <div id="sales-trend-chart"></div>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Top Products</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Highest revenue-generating products</span>
+                                    </div>
+                                </div>
+                                <div id="top-products-chart"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Product Performance Analytics Content -->
+                <div id="product-analytics" class="analytics-content">
+                    <!-- Loading/Error States -->
+                    <div id="product-loading" class="text-center py-16">
+                        <div class="spinner"></div>
+                        <p class="mt-4 text-gray-600">Loading product analytics...</p>
+                    </div>
+                    <div id="product-error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+                        <strong>Error:</strong> <span id="product-error-text">Failed to load product data</span>
+                    </div>
+
+                    <!-- Content -->
+                    <div id="product-content" class="hidden">
+                        <!-- Product Metrics -->
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                            <div class="metric-card">
+                                <h4>Top Product</h4>
+                                <div class="metric-value" id="product-top-product">Loading...</div>
+                                <div class="metric-label">Best seller</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>Top Revenue</h4>
+                                <div class="metric-value" id="product-top-revenue">$0</div>
+                                <div class="metric-label">Single product</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>Avg Price</h4>
+                                <div class="metric-value" id="product-avg-price">$0</div>
+                                <div class="metric-label">All products</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>Price Range</h4>
+                                <div class="metric-value" id="product-price-range">$0 - $0</div>
+                                <div class="metric-label">Min - Max</div>
+                            </div>
+                        </div>
+
+                        <!-- Product Charts -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Performance Matrix</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Bubble chart showing product performance across price, volume, and revenue</span>
+                                    </div>
+                                </div>
+                                <div id="performance-matrix-chart"></div>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Price vs Volume</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Relationship between product pricing and sales volume</span>
+                                    </div>
+                                </div>
+                                <div id="price-volume-chart"></div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Revenue Concentration</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Pareto analysis showing which products drive most revenue</span>
+                                    </div>
+                                </div>
+                                <div id="pareto-analysis-chart"></div>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Price Categories</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Performance comparison across different price ranges</span>
+                                    </div>
+                                </div>
+                                <div id="price-categories-chart"></div>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Volume Distribution</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Box plot showing quantity distribution for top products</span>
+                                    </div>
+                                </div>
+                                <div id="volume-distribution-chart"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Customer Insights Analytics Content -->
+                <div id="customer-analytics" class="analytics-content">
+                    <!-- Loading/Error States -->
+                    <div id="customer-loading" class="text-center py-16">
+                        <div class="spinner"></div>
+                        <p class="mt-4 text-gray-600">Loading customer analytics...</p>
+                    </div>
+                    <div id="customer-error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+                        <strong>Error:</strong> <span id="customer-error-text">Failed to load customer data</span>
+                    </div>
+
+                    <!-- Content -->
+                    <div id="customer-content" class="hidden">
+                        <!-- Customer Metrics -->
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                            <div class="metric-card">
+                                <h4>Total Customers</h4>
+                                <div class="metric-value" id="customer-total-customers">0</div>
+                                <div class="metric-label">Unique customers</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>Avg Customer Value</h4>
+                                <div class="metric-value" id="customer-avg-customer-value">$0</div>
+                                <div class="metric-label">Per customer</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>Top Customer Value</h4>
+                                <div class="metric-value" id="customer-top-customer-value">$0</div>
+                                <div class="metric-label">Highest spender</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>Repeat Customers</h4>
+                                <div class="metric-value" id="customer-repeat-customers">0</div>
+                                <div class="metric-label">Multiple purchases</div>
+                            </div>
+                        </div>
+
+                        <!-- Customer Charts -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Customer Spending</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Top customers ranked by total spending</span>
+                                    </div>
+                                </div>
+                                <div id="customer-spending-chart"></div>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Transaction Patterns</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Distribution of transaction values showing spending behavior</span>
+                                    </div>
+                                </div>
+                                <div id="transaction-patterns-chart"></div>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Customer Segments</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Customer segmentation based on spending and purchase frequency</span>
+                                    </div>
+                                </div>
+                                <div id="customer-segments-chart"></div>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Purchase Behavior</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Average quantities purchased based on basket diversity</span>
+                                    </div>
+                                </div>
+                                <div id="purchase-behavior-chart"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced Analytics Content -->
+                <div id="advanced-analytics" class="analytics-content">
+                    <!-- Loading/Error States -->
+                    <div id="advanced-loading" class="text-center py-16">
+                        <div class="spinner"></div>
+                        <p class="mt-4 text-gray-600">Loading advanced analytics...</p>
+                    </div>
+                    <div id="advanced-error" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+                        <strong>Error:</strong> <span id="advanced-error-text">Failed to load advanced data</span>
+                    </div>
+
+                    <!-- Content -->
+                    <div id="advanced-content" class="hidden">
+                        <!-- Advanced Metrics -->
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                            <div class="metric-card">
+                                <h4>Cross-sell Opportunities</h4>
+                                <div class="metric-value" id="advanced-cross-sell-opportunities">0</div>
+                                <div class="metric-label">Product pairs</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>Multi-item Transactions</h4>
+                                <div class="metric-value" id="advanced-multi-item-transactions">0</div>
+                                <div class="metric-label">Multiple products</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>Avg Items/Transaction</h4>
+                                <div class="metric-value" id="advanced-avg-items-per-transaction">0.0</div>
+                                <div class="metric-label">Basket size</div>
+                            </div>
+                            <div class="metric-card">
+                                <h4>Seasonal Variance</h4>
+                                <div class="metric-value" id="advanced-seasonal-variance">0%</div>
+                                <div class="metric-label">Month-to-month</div>
+                            </div>
+                        </div>
+
+                        <!-- Advanced Charts -->
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Cross-sell Heatmap</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Products frequently bought together - darker colors indicate stronger associations</span>
+                                    </div>
+                                </div>
+                                <div id="cross-sell-heatmap-chart"></div>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Seasonal Trends</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Revenue patterns across different months</span>
+                                    </div>
+                                </div>
+                                <div id="seasonal-trends-chart"></div>
+                            </div>
+                            <div class="chart-container">
+                                <div class="chart-title">
+                                    <h3>Profitability Analysis</h3>
+                                    <div class="tooltip">
+                                        <i class="fas fa-info-circle info-tooltip"></i>
+                                        <span class="tooltiptext">Estimated profitability based on volume and margins</span>
+                                    </div>
+                                </div>
+                                <div id="profitability-analysis-chart"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Functions -->
+    <script>
+        // Tab switching functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const mainTabLinks = document.querySelectorAll('.dashboard-tabs a[role="tab"]');
+            const mainTabContents = document.querySelectorAll('.dashboard-tab-content');
+
+            mainTabLinks.forEach(function(tabLink) {
+                tabLink.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    // Remove active class from all main tabs
+                    mainTabLinks.forEach(function(link) {
+                        link.classList.remove('active-tab');
+                    });
+                    mainTabContents.forEach(function(content) {
+                        content.classList.remove('active');
+                    });
+                    
+                    // Add active class to clicked tab
+                    this.classList.add('active-tab');
+                    
+                    // Show corresponding content
+                    const targetId = this.getAttribute('href').substring(1);
+                    const targetContent = document.getElementById(targetId);
+                    if (targetContent) {
+                        targetContent.classList.add('active');
+                    }
+                });
+            });
+
+            // Analytics sub-tab switching
+            const analyticsTabLinks = document.querySelectorAll('.analytics-tab-link');
+            const analyticsContents = document.querySelectorAll('.analytics-content');
+
+            if (analyticsTabLinks.length > 0) {
+                analyticsTabLinks.forEach(function(tabLink) {
+                    tabLink.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        
+                        // Remove active class from all analytics tabs
+                        analyticsTabLinks.forEach(function(link) {
+                            link.classList.remove('active');
+                        });
+                        analyticsContents.forEach(function(content) {
+                            content.classList.remove('active');
+                        });
+                        
+                        // Add active class to clicked tab
+                        this.classList.add('active');
+                        
+                        // Show corresponding content
+                        const targetId = this.getAttribute('href').substring(1);
+                        const targetContent = document.getElementById(targetId);
+                        if (targetContent) {
+                            targetContent.classList.add('active');
+                        }
+                        
+                        // Load data for the selected category
+                        const category = this.getAttribute('data-category');
+                        loadAnalyticsData(category);
+                    });
+                });
+            }
+
+            // Auto-hide success messages
+            setTimeout(function() {
+                const messageBox = document.getElementById('dashboardMessage');
+                if (messageBox && messageBox.classList.contains('success')) {
+                    messageBox.style.transition = 'opacity 0.5s ease-out';
+                    messageBox.style.opacity = '0';
+                    setTimeout(function() {
+                        messageBox.style.display = 'none';
+                    }, 500);
+                }
+            }, 5000);
+        });
+
+        // Load analytics data function
+        function loadAnalyticsData(category) {
+            const endpoints = {
+                'summary': '/dashboard/summary-data',
+                'product': '/dashboard/product-performance-data', 
+                'customer': '/dashboard/customer-insights-data',
+                'advanced': '/dashboard/advanced-analytics-data'
+            };
+            
+            const endpoint = endpoints[category];
+            if (!endpoint) return;
+            
+            const loading = document.getElementById(`${category}-loading`);
+            const error = document.getElementById(`${category}-error`);
+            const content = document.getElementById(`${category}-content`);
+            
+            if (loading) loading.style.display = 'block';
+            if (error) error.style.display = 'none';
+            if (content) content.style.display = 'none';
+            
+            fetch(endpoint)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status !== 'success') {
+                        throw new Error(data.message || 'Unknown error occurred');
+                    }
+                    
+                    // Update metrics
+                    updateMetrics(category, data.metrics);
+                    
+                    // Render charts
+                    renderCharts(category, data.charts);
+                    
+                    if (loading) loading.style.display = 'none';
+                    if (content) content.style.display = 'block';
+                })
+                .catch(error => {
+                    console.error(`${category} data loading error:`, error);
+                    if (loading) loading.style.display = 'none';
+                    if (error) {
+                        error.style.display = 'block';
+                        const errorText = error.querySelector(`#${category}-error-text`);
+                        if (errorText) errorText.textContent = error.message;
+                    }
+                });
+        }
+
+        function updateMetrics(category, metrics) {
+            // Update metrics based on category
+            Object.entries(metrics).forEach(([key, value]) => {
+                const element = document.getElementById(`${category}-${key.replace(/_/g, '-')}`);
+                if (element) {
+                    element.textContent = value;
+                }
+            });
+        }
+
+        function renderCharts(category, charts) {
+            // Render Plotly charts
+            Object.entries(charts).forEach(([chartKey, chartData]) => {
+                const elementId = `${chartKey.replace(/_/g, '-')}-chart`;
+                const element = document.getElementById(elementId);
+                if (element && chartData.figure) {
+                    try {
+                        const figure = JSON.parse(chartData.figure);
+                        const config = chartData.config || {responsive: true};
+                        Plotly.newPlot(elementId, figure.data, figure.layout, config);
+                    } catch (e) {
+                        console.error(`Error rendering chart ${chartKey}:`, e);
+                    }
+                }
+            });
+        }
+
+        // Load summary data by default when analytics tab is opened
+        const analyticsMainTab = document.querySelector('a[href="#analytics-tab"]');
+        if (analyticsMainTab) {
+            analyticsMainTab.addEventListener('click', function() {
+                // Load summary data by default
+                setTimeout(() => loadAnalyticsData('summary'), 100);
+            });
+        }
+    </script>
+</body>
+</html>
